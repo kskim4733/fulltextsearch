@@ -1,15 +1,13 @@
-# PDFBox Fulltext Search
+# Full Text Search w/ PDFBox
 
-Instructions to package fulltextsearch's PrintTextLocations.java as a jar for use with IA BookReader. Fulltextsearch uses the Apache PDFBox library to parse a given PDF document and search for a given term. Specifically fulltextsearch will retrieve data about the search term such as it's text coordinates and page number.
+Fulltextsearch uses the Apache PDFBox library to parse a given PDF document and search for a given term. Specifically fulltextsearch will retrieve data about the search term such as it's text coordinates and page number. Below are instructions to package fulltextsearch's PrintTextLocations.java as a jar for use with IA BookReader. 
 
 
-### Dependencies
+## Dependencies
 
-Get Eclipse (I used Oxygen v4.7.0)
-link: https://www.eclipse.org/downloads/
+Get **Eclipse** (I used Oxygen v4.7.0) at https://www.eclipse.org/downloads/
 
-Get the following Apache PDFBox libraries (I used v2.0.9)
-link: https://pdfbox.apache.org/
+Get the following **Apache PDFBox libraries** (I used v2.0.9) at https://pdfbox.apache.org/
 - debugger-app-2.0.9.jar
 - fontbox-2.0.9.jar
 - pdfbox-2.0.9.jar
@@ -20,9 +18,9 @@ link: https://pdfbox.apache.org/
 - xmpbox-2.0.9.jar
 
 
-### Instructions
+## Instructions
 
-Using Eclipse:
+Using **Eclipse**:
 
 1. First get a copy of the project and open it up on Eclipse.
 	- In Eclipse, click `File -> Open Projects from File System`.
