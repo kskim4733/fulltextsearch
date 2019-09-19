@@ -33,30 +33,28 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
+import java.util.stream.Collectors;
 
 /**
  * Parse a given PDF document and search for occurrences of a given term.
  * Print to system out, information needed to fuel BookReader's search feature.
  * The data includes relevant page and text information like text coordinates.
  */
-public class PrintTextLocations extends PDFTextStripper
-{
-	
+public class PrintTextLocations extends PDFTextStripper {
 	private static String searchterm;
 	private static int termlength;
 	private static String style;
 	private static List<List> allMatches = new ArrayList<>();
 	private static List<List> lineBounds = new ArrayList<>();
 	private static List output = new ArrayList();
-	
+
     /**
      * Instantiate a new PDFTextStripper object.
      *
      * @throws IOException If there is an error loading the properties.
      */
-    public PrintTextLocations() throws IOException
-    {
-    	
+    public PrintTextLocations() throws IOException {
+
     }
 
     /**
@@ -66,23 +64,18 @@ public class PrintTextLocations extends PDFTextStripper
      *
      * @throws IOException If there is an error parsing the document.
      */
-    public static void main( String[] args ) throws IOException
-    {
-        if( args.length < 5 )
-        {
+    public static void main( String[] args ) throws IOException {
+			if( args.length < 5 ) {
             usage();
-        }
-        else
-        {
+        } else {
             PDDocument document = null;
-            try
-            {
+            try {
             	String ia = args[0];
             	String path = args[1];
             	String query = args[2].trim();
             	String callback = args[3];
             	style = args[4];
-            	
+
             	File file = new File(path);
             	searchterm = query.toLowerCase();
             	termlength = searchterm.length();
@@ -98,26 +91,25 @@ public class PrintTextLocations extends PDFTextStripper
 
                 printInfo(document.getNumberOfPages(), ia, callback);
                 document.close();
-                
-            } 
+
+            }
             catch (Exception e) {
             	System.out.println("Hmmm, looks like something went wrong.");
+            	e.printStackTrace();
             	usage();
             }
-            finally
-            {
-                if( document != null )
-                {
+            finally {
+                if( document != null ) {
                     document.close();
                 }
             }
         }
     }
-    
+
 
     /**
      * Override the default functionality of PDFTextStripper.
-     * 
+     *
      * Performs a line-by-line, char-by-char search on the pdf document.
      * Creates a list of lists of details of the the term found.
      * Details include
@@ -126,70 +118,64 @@ public class PrintTextLocations extends PDFTextStripper
      * - the coordinates of the boundaries of the line searchterm was found in
      */
     @Override
-    protected void writeString(String string, List<TextPosition> textPositions) throws IOException
-    {
-    	List temp = new ArrayList();
-    	
-    	float pagewidth = textPositions.get(0).getPageWidth();
-    	float pageheight = textPositions.get(0).getPageHeight();
-    	
-    	String lower = string.toLowerCase();
-    	String normalized = Normalizer.normalize(lower, Form.NFD).replaceAll("[\\p{M}]", "");
-    	int prevIndex = 0;
-    	int start = 0;
-    	
-    	// Search through the original and an non-accented version of the text
-    	while (lower.indexOf(searchterm, prevIndex) >= 0 || normalized.indexOf(searchterm, prevIndex) >= 0) {
-    		
-    		if (lower.indexOf(searchterm, prevIndex) >= 0) {
-        		start = lower.indexOf(searchterm, prevIndex);
-    		}
-    		else {
-        		start = normalized.indexOf(searchterm, prevIndex);
-    		}
-    		
-    		int fin = start + termlength;
-    		
-    		// Grab the coordinates of only the term
-    		float x = textPositions.get(start).getXDirAdj();
-    		float y = textPositions.get(start).getYDirAdj();
-    		float x2 = textPositions.get(fin - 1).getXDirAdj();
-    		float y2 = textPositions.get(fin - 1).getYDirAdj();
-    		float height = textPositions.get(start).getFontSize();
-    		float width = textPositions.get(fin - 1).getWidthDirAdj();
-    		
-    		List coords = formatCoords(x, y - height, x2 + width, y);
-    		allMatches.add(coords);
-    		
-    		// Grab the coordinates for the whole line containing the term
-    		int lastitem = textPositions.size() - 1;
-    		float leftBound = textPositions.get(0).getXDirAdj();
-    		float rightBound = textPositions.get(lastitem).getXDirAdj() + textPositions.get(lastitem).getWidthDirAdj();
-    		float topBound = y - height;
-    		float botBound = y;
-    		
-    		// Build the new string with the {{{highlighting braces}}}
-        	String newStr = string.replaceAll("\"", "");
-        	String begin = newStr.substring(0, start);
-        	String mid = newStr.substring(start, fin);
-        	String end = newStr.substring(fin);
-        	newStr = begin + "{{{" + mid + "}}}" + end;
-			
-    		lineBounds.add(Arrays.asList(newStr, getCurrentPageNo(), pagewidth, pageheight, botBound, topBound, rightBound, leftBound));
-    		prevIndex = fin;
-    	}
+    protected void writeString(String string, List<TextPosition> textPositions) throws IOException {
+		float pagewidth = textPositions.get(0).getPageWidth();
+		float pageheight = textPositions.get(0).getPageHeight();
+
+		String lower = string.toLowerCase();
+		String normalized = Normalizer.normalize(lower, Form.NFD).replaceAll("[\\p{M}]", "");
+		int prevIndex = 0;
+		int start;
+		if (string.length() != textPositions.size()) {
+		    textPositions = fixList(textPositions);
+        }
+		// Search through the original and an non-accented version of the text
+		while (lower.indexOf(searchterm, prevIndex) >= 0 || normalized.indexOf(searchterm, prevIndex) >= 0) {
+			if (lower.indexOf(searchterm, prevIndex) >= 0) {
+				start = lower.indexOf(searchterm, prevIndex);
+			} else {
+				start = normalized.indexOf(searchterm, prevIndex);
+			}
+
+			int fin = start + termlength;
+			// Grab the coordinates of only the term
+			float x = textPositions.get(start).getXDirAdj();
+			float y = textPositions.get(start).getYDirAdj();
+			float x2 = textPositions.get(fin -1).getXDirAdj(); // troubled area
+			float y2 = textPositions.get(fin -1).getYDirAdj();
+			float height = textPositions.get(start).getFontSize();
+			float width = textPositions.get(fin -1).getWidthDirAdj();
+			List coords = formatCoords(x, y - height, x2 + width, y);
+			allMatches.add(coords);
+
+			// Grab the coordinates for the whole line containing the term
+			int lastitem = textPositions.size() - 1;
+			float leftBound = textPositions.get(0).getXDirAdj();
+			float rightBound = textPositions.get(lastitem).getXDirAdj() + textPositions.get(lastitem).getWidthDirAdj();
+			float topBound = y - height;
+			float botBound = y;
+
+			// Build the new string with the {{{highlighting braces}}}
+			String newStr = string.replaceAll("\"", "");
+			String begin = newStr.substring(0, start);
+			String mid = newStr.substring(start, fin);
+			String end = newStr.substring(fin);
+			newStr = begin + "{{{" + mid + "}}}" + end;
+
+			lineBounds.add(Arrays.asList(newStr, getCurrentPageNo(), pagewidth, pageheight, botBound, topBound, rightBound, leftBound));
+			prevIndex = fin;
+		}
     }
-    
-    
+
+
     /**
      * This will print the usage for this document.
      */
-    private static void usage()
-    {
+    private static void usage() {
     	System.err.println( "Usage: java -jar pdfbox_search.jar <item-id> <file-path> <query-term> <callback> <css-or-abbyy>" );
     }
-    
-    
+
+
     /**
      * Return the set of coordinates in either CSS style of Abbyy style.
      * (Defaults to abbyy)
@@ -201,7 +187,7 @@ public class PrintTextLocations extends PDFTextStripper
     	float r, b;
     	float l = x1;
     	float t = y1;
-    	
+
     	if (style.equals("css")) {
     		// r is width, b is height
     		r = x2 - l;
@@ -211,39 +197,39 @@ public class PrintTextLocations extends PDFTextStripper
     		r = x2;
     		b = y2;
     	}
-    	
+
     	coords.add(r);
     	coords.add(b);
     	coords.add(t);
     	coords.add(l);
-    	
+
     	return coords;
     }
-    
-    
+
+
     /**
      * Print the contents of allMatches and lineBounds to stdout.
      * Every term found contains a block of info separated by a newline.
-     * 
+     *
      * The info is the same as printJson but formatted differently to make
      * reading and parsing easier.
-     * 
+     *
      * @param totalPages
      * @param ia
      * @param callback
      */
     public static void printInfo(int totalPages, String ia, String callback) {
     	List temp = new ArrayList();
-    	
+
     	System.out.println("callback:" + callback
     			+ "\nia:" + ia
     			+ "\nterm:" + searchterm
     			+ "\npages:" + totalPages + "\n");
-        
+
         for (int i = 0; i < allMatches.size(); i++) {
 			List match = allMatches.get(i);
 			List bounds = lineBounds.get(i);
-        	
+
         	Object text = bounds.get(0);
         	int pgnum = (int) bounds.get(1) - 1;
         	float pgwidth = (float) bounds.get(2);
@@ -252,35 +238,35 @@ public class PrintTextLocations extends PDFTextStripper
         	float tBound = (float) bounds.get(5);
         	float rBound = (float) bounds.get(6);
         	float lBound = (float) bounds.get(7);
-        	
+
         	float r = (float) match.get(0);
         	float b = (float) match.get(1);
         	float t = (float) match.get(2);
         	float l = (float) match.get(3);
-        	
-        	System.out.println("text:" + text 
-        			+ "\npage_num:" + pgnum 
+
+        	System.out.println("text:" + text
+        			+ "\npage_num:" + pgnum
         			+ "\npage_size:" + pgwidth + "," + pgheight
         			+ "\ntext_bounds:" + bBound + "," + tBound + "," + rBound + "," + lBound
         			+ "\nterm_bounds:" + r + "," + b + "," + t + "," + l + "\n");
         }
     }
-    
-    
+
+
     /*
      * ------------------- All code under these lines are unused -------------------
      * They were built for previous iterations and performed slightly different tasks.
      */
-    
-    
+
+
     /**
      * Write out the contents of allMatches and lineBounds to a new file "output.txt".
      * Every term found contains a block of info separated by a newline.
-     * 
+     *
      * The info is the same as printJson but formatted differently to make
      * reading and parsing easier. An attempt to speed up the process but
      * printInfo is faster.
-     * 
+     *
      * (writeInfo is currently unused)
      * @param totalPages
      * @param ia
@@ -289,16 +275,16 @@ public class PrintTextLocations extends PDFTextStripper
     public static void writeInfo(int totalPages, String ia, String callback) throws FileNotFoundException, UnsupportedEncodingException {
     	PrintWriter writer = new PrintWriter("./output.txt", "UTF-8");
     	List temp = new ArrayList();
-    	
+
     	writer.println("callback:" + callback
     			+ "\nia:" + ia
     			+ "\nterm:" + searchterm
     			+ "\npages:" + totalPages + "\n");
-        
+
         for (int i = 0; i < allMatches.size(); i++) {
 			List match = allMatches.get(i);
 			List bounds = lineBounds.get(i);
-        	
+
         	Object text = bounds.get(0);
         	int pgnum = (int) bounds.get(1) - 1;
         	float pgwidth = (float) bounds.get(2);
@@ -307,82 +293,82 @@ public class PrintTextLocations extends PDFTextStripper
         	float tBound = (float) bounds.get(5);
         	float rBound = (float) bounds.get(6);
         	float lBound = (float) bounds.get(7);
-        	
+
         	float r = (float) match.get(0);
         	float b = (float) match.get(1);
         	float t = (float) match.get(2);
         	float l = (float) match.get(3);
-        	
-        	writer.println("text:" + text 
-        			+ "\npage_num:" + pgnum 
+
+        	writer.println("text:" + text
+        			+ "\npage_num:" + pgnum
         			+ "\npage_size:" + pgwidth + "," + pgheight
         			+ "\ntext_bounds:" + bBound + "," + tBound + "," + rBound + "," + lBound
         			+ "\nterm_bounds:" + r + "," + b + "," + t + "," + l + "\n");
         }
         writer.close();
     }
-    
-    
+
+
     /**
      * Create a new file called coords.txt that stores the results from the search.
      * Each search term found contains its own line of information.
-     * 
+     *
      * (writeOut is currently unused)
      * @throws FileNotFoundException
      * @throws UnsupportedEncodingException
      */
     public static void writeOut() throws FileNotFoundException, UnsupportedEncodingException {
-    	
+
     	PrintWriter writer = new PrintWriter("coords.txt", "UTF-8");
     	writer.println("Searched for: " + searchterm + " ");
-    	
+
     	for (int i = 0; i < output.size(); i++) {
     		List line = (List) output.get(i);
-    		
+
     		for (int j = 0; j < line.size(); j++) {
     			Object l = line.get(j);
     			writer.print(l.toString());
-    			
+
     			if (j + 1 < line.size() || i % 2 < 1) {
     				writer.print(",");
     			}
     		}
-    		
+
     		if (i + 1 < output.size() && i % 2 == 1) {
     			writer.println();
 			}
     	}
-    	
+
     	writer.close();
     	System.out.println("Created coords.txt.");
     }
-    
-    
+
+
     /**
      * Builds and writes out to a new json file the contents of our work.
      * In our case, the json file is a bookreader's search api call.
-     * 
+     *
      * (buildJson is currently unused)
      * @param totalPages
      * @throws FileNotFoundException
      * @throws UnsupportedEncodingException
      */
     public static void buildJson(int totalPages, String ia, String callback) throws FileNotFoundException, UnsupportedEncodingException{
-    	
+
     	PrintWriter writer = new PrintWriter("filename", "UTF-8");
     	List temp = new ArrayList();
-    	
+
     	writer.println(callback + "( {"
         		+ "\n\t\"ia\": \"" + ia +  "\","
         		+ "\n\t\"q\": \"\\\"" + searchterm + "\\\"\","
         		+ "\n\t\"page_count\": " + totalPages + ","
         		+ "\n\t\"leaf0_missing\": true,"
         		+ "\n\t\"matches\": [");
-        
+
         for (int i = 0; i < allMatches.size(); i++) {
 			List match = allMatches.get(i);
 			List bounds = lineBounds.get(i);
-        	
+
         	Object text = bounds.get(0);
         	int pgnum = (int) bounds.get(1) - 1;
         	float pgwidth = (float) bounds.get(2);
@@ -391,14 +377,14 @@ public class PrintTextLocations extends PDFTextStripper
         	float tBound = (float) bounds.get(5);
         	float rBound = (float) bounds.get(6);
         	float lBound = (float) bounds.get(7);
-        	
+
         	float r = (float) match.get(0);
         	float b = (float) match.get(1);
         	float t = (float) match.get(2);
         	float l = (float) match.get(3);
-        	
-        	writer.print("{" + "\n\t\"text\":\"" + text + "\", " 
-        			+ "\n\t\"par\": [{" 
+
+        	writer.print("{" + "\n\t\"text\":\"" + text + "\", "
+        			+ "\n\t\"par\": [{"
         			+ "\n\t\t\"page\": " + pgnum + ", \"page_width\": " + pgwidth + ", \"page_height\": " + pgheight + ","
         			+ "\n\t\t\"b\": " + bBound + ", \"t\": " + tBound + ", \"r\": " + rBound + ", \"l\": " + lBound + ","
         			+ "\n\t\t\"boxes\": ["
@@ -410,17 +396,17 @@ public class PrintTextLocations extends PDFTextStripper
         		writer.println("\n\t\t] \n\t}] \n}");
         	}
         }
-        
+
         writer.println("] \n} )");
         writer.close();
     	System.out.println("Created filename.txt.");
     }
-    
-    
+
+
     /**
      * Print the contents of allMatches and lineBounds to stdout in json format.
      * In our case, the json file is a bookreader's search api call.
-     * 
+     *
      * (printJson is currently unused)
      * @param totalPages
      * @param ia
@@ -428,18 +414,18 @@ public class PrintTextLocations extends PDFTextStripper
      */
     public static void printJson(int totalPages, String ia, String callback){
     	List temp = new ArrayList();
-    	
+
     	System.out.println(callback + "( {"
         		+ "\n\t\"ia\": \"" + ia +  "\","
         		+ "\n\t\"q\": \"\\\"" + searchterm + "\\\"\","
         		+ "\n\t\"page_count\": " + totalPages + ","
         		+ "\n\t\"leaf0_missing\": true,"
         		+ "\n\t\"matches\": [");
-        
+
         for (int i = 0; i < allMatches.size(); i++) {
 			List match = allMatches.get(i);
 			List bounds = lineBounds.get(i);
-        	
+
         	Object text = bounds.get(0);
         	int pgnum = (int) bounds.get(1) - 1;
         	float pgwidth = (float) bounds.get(2);
@@ -448,14 +434,14 @@ public class PrintTextLocations extends PDFTextStripper
         	float tBound = (float) bounds.get(5);
         	float rBound = (float) bounds.get(6);
         	float lBound = (float) bounds.get(7);
-        	
+
         	float r = (float) match.get(0);
         	float b = (float) match.get(1);
         	float t = (float) match.get(2);
         	float l = (float) match.get(3);
-        	
-        	System.out.print("{" + "\n\t\"text\": \"" + text + "\", " 
-        			+ "\n\t\"par\": [{" 
+
+        	System.out.print("{" + "\n\t\"text\": \"" + text + "\", "
+        			+ "\n\t\"par\": [{"
         			+ "\n\t\t\"page\": " + pgnum + ", \"page_width\": " + pgwidth + ", \"page_height\": " + pgheight + ","
         			+ "\n\t\t\"b\": " + bBound + ", \"t\": " + tBound + ", \"r\": " + rBound + ", \"l\": " + lBound + ","
         			+ "\n\t\t\"boxes\": ["
@@ -467,11 +453,35 @@ public class PrintTextLocations extends PDFTextStripper
         		System.out.println("\n\t\t] \n\t}] \n}");
         	}
         }
-        
+
         System.out.println("] \n} )");
     }
 
-}
+	private static List<TextPosition> fixList(List<TextPosition> oldList) {
+    	List<TextPosition> newList = new ArrayList<>(oldList);
+    	int offset = 0;
+    	for (int index = 0; index< oldList.size(); index++) {
+			String value = oldList.get(index).getUnicode();
+			if (value.length() > 1) {
+				List<TextPosition> tempList = new ArrayList<>();
+				for (int i = 0; i < value.length(); i++){
+					String newValue = Character.toString(value.charAt(i));
+					TextPosition newPosition = cloneTextPostion(oldList.get(index), newValue);
+					tempList.add(newPosition);
+				}
+				newList.remove(index + offset);
+				newList.addAll(index + offset, tempList);
+				index += tempList.size();
+			}
+		}
+    	return newList;
+	}
 
+	private static TextPosition cloneTextPostion(TextPosition src, String newValue) {
+    	return new TextPosition(src.getRotation(), src.getPageWidth(), src.getPageHeight(),
+				src.getTextMatrix(), src.getEndX(), src.getEndY(), src.getHeight(), src.getIndividualWidths()[0],
+				src.getWidthOfSpace(), newValue, src.getCharacterCodes(), src.getFont(), src.getFontSize(), (int)src.getFontSizeInPt());
+	}
+}
 
 
